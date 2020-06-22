@@ -23,12 +23,23 @@ type Game = {
 type Action = Action of int
 type Reward = Reward of int
 type AgentBoard = AgentBoard of string
+type EnvironmentBoard = EnvironmentBoard of string
 type GameStage =
     | Ilegal
-    | Won of Reward
-    | Lost of Reward
-    | Draw of Reward
-    | EnemyTurn of reward: Reward * game: Game
+    | Won of Reward * AgentBoard
+    | Lost of Reward * AgentBoard
+    | Draw of Reward * AgentBoard
+    | EnemyTurn of reward: Reward * game: AgentBoard
+type Cell =
+        | Empty
+        | Own
+        | Enemy
+    with override xx.ToString() = 
+            match xx with
+            | Empty -> " "
+            | Own -> "X"
+            | Enemy -> "0"
+
 [<AutoOpen>]
 module Utils =
     let ones = Vector<float>.Build.Dense(3, 1.0)
@@ -54,18 +65,30 @@ module Utils =
             |> List.max
             |> AgentBoard
 
-    let showAgentBoard (AgentBoard agentBoard) =
-        // let agentBoard = "012345678"
-        agentBoard.ToCharArray()
+    let showEnvironmentBoard (EnvironmentBoard board) =
+        // let board = "012345678"
+        board.ToCharArray()
         |> Array.map string
         |> Array.chunkBySize 3
-        |> Array.map (fun x -> " " + String.concat " | " x)
-        |> String.concat "\n---┼---┼---\n"
+        |> Array.map (fun x -> " " + String.concat " │ " x)
+        |> String.concat "\n───┼───┼───\n"
         // |> fun t -> "\n" + t
         // let sb = System.Text.StringBuilder("You are using X, enemy 0:\n------")
         // sb.AppendLine(agentBoard.Substring(0,3)) .AppendLine(agentBoard.Substring(3, 3)) .AppendLine(agentBoard.Substring(6)) |> ignore
         // sb.AppendLine()
         // sb.ToString()
+
+// Agent ask for environment observation
+let private observeBoard (player: Player) board =
+    board 
+        |> Array.map((function
+                        | EmptyCell -> Empty
+                        | PlayerCell p when p = player -> Own
+                        | PlayerCell _ -> Enemy)
+                        >> string)
+
+let observeEnvironmentBoard (player: Player) board = observeBoard player board |> String.concat "" |> EnvironmentBoard
+let observeAgentBoard (player: Player) board = observeBoard player board |> boardRepresentationForAgent
 
 
 
@@ -97,17 +120,17 @@ let updateGame player (Action cellNo) game =
                 else getOtherPlayer player |> PlayerToMove
 
     match game.turn with
-    | GameDraw -> Draw drawReward
-    | GameWonBy p when p = player -> Won winReward
-    | GameWonBy _ -> Lost loseReward
+    | GameDraw -> Draw (drawReward, game.board |> observeAgentBoard player), game
+    | GameWonBy p when p = player -> Won (winReward, game.board |> observeAgentBoard player), game
+    | GameWonBy _ -> Lost (loseReward, game.board |> observeAgentBoard player), game
     | PlayerToMove p when p <> player -> 
         printfn "Not %A turn to move" player
-        Ilegal
+        Ilegal, game
     | _ ->
         match game.board.[cellNo] with
         | PlayerCell _ ->
             printfn "Cell already played"
-            Ilegal  // the cell was played before
+            Ilegal, game // the cell was played before
         | EmptyCell ->
             let updatedBoard = Array.init 9 (fun i -> if i = cellNo then PlayerCell player else game.board.[i])
             let newGameState = {
@@ -115,37 +138,16 @@ let updateGame player (Action cellNo) game =
                 board = updatedBoard
             }
             match newGameState.turn with
-                | GameDraw -> Draw drawReward
-                | GameWonBy p when p = player -> Won winReward
+                | GameDraw -> Draw (drawReward, newGameState.board |> observeAgentBoard player), newGameState
+                | GameWonBy p when p = player -> Won (winReward, newGameState.board |> observeAgentBoard player), newGameState
                 | GameWonBy _ -> 
                     printfn "How the other won on my move???"
-                    Ilegal
-                | PlayerToMove _ -> EnemyTurn (moveReward, newGameState)
+                    Ilegal, game
+                | PlayerToMove _ -> EnemyTurn (moveReward, newGameState.board |> observeAgentBoard player), newGameState
 
 ////////////////////////////////////////////////  FROM AGENT Perspective
 
 
-type Cell =
-        | Empty
-        | Own
-        | Enemy
-    with override xx.ToString() = 
-            match xx with
-            | Empty -> " "
-            | Own -> "X"
-            | Enemy -> "0"
-
-// Agent ask for environment observation
-let observeBoard (player: Player) game =
-    game.board 
-        |> Array.map((function
-                        | EmptyCell -> Empty
-                        | PlayerCell p when p = player -> Own
-                        | PlayerCell _ -> Enemy)
-                        >> string)
-        |> String.concat ""
-        |> AgentBoard
-        
 
 // Agent ask for actions
 let availableActions (player: Player) (game: Game) =
