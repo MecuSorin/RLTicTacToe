@@ -21,7 +21,7 @@ type Game = {
         turn: Turn
     }
 type Action = Action of int
-type Reward = Reward of int
+type Reward = Reward of float
 type AgentBoard = AgentBoard of string
 type EnvironmentBoard = EnvironmentBoard of string
 type GameStage =
@@ -95,10 +95,10 @@ let observeAgentBoard (player: Player) board = observeBoard player board |> boar
 
 // Environment action
 let updateGame player (Action cellNo) game =
-    let moveReward = Reward 0
-    let winReward = Reward 10
-    let drawReward = Reward 0
-    let loseReward = Reward -10
+    let moveReward = Reward 0.
+    let winReward = Reward 10.
+    let drawReward = Reward 0.
+    let loseReward = Reward -10.
 
     let getOtherPlayer = function
         | PlayerX -> PlayerO

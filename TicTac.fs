@@ -18,11 +18,11 @@ let userAgent (getActions: RequestActions) (_ : GetAgentBoard) (showBoard: ShowB
     let mutable matchingAction = None
     while matchingAction |> Option.isNone do
         showBoard()
-            |> printfn "You are X, choose your action (%s):\n%s" (actions |> Array.map(fun (Action a) -> string a) |> String.concat ", ")
+            |> printfn "You are X, choose your action (%s):\n%s" (actions |> Array.map(fun (Action a) -> string (a + 1)) |> String.concat ", ")
         let chosenAction = 
             match Int32.TryParse (Console.ReadLine()) with
                 | false, _ -> Action 100
-                | true, n -> Action n
+                | true, n -> Action (n - 1)
         matchingAction <- actions |> Array.tryFind ((=)chosenAction)
     let checkOutcome = function
         | Ilegal -> printfn "Invalid move"
@@ -32,31 +32,48 @@ let userAgent (getActions: RequestActions) (_ : GetAgentBoard) (showBoard: ShowB
         | EnemyTurn _ -> ()
     Option.get matchingAction, checkOutcome
 
-// let learningAgent () (shouldEplore: bool) (getActions: RequestActions) (getBoard: GetAgentBoard) (_: ShowBoard) : chosenAction: Action * actionOutcome: LearnFromOutcome =
-//     let stateValue = System.Collections.Generic.Dictionary<Action * AgentBoard, float>()
-//     let mutable currentGameHistory = []
-//     let learnigRate = .3
-//     // let exploring = .5
-//     let pickAnAction 
-//     let fromState = getBoard()
-//     let actions = getActions () |> Array.map fst 
-//     let chosenAction = actions.[rand.]
-//     let rec learnFromHistory (Reward nextActionReward)= function
-//         | [] -> ()
-//         | (reward, action, fromState) :: tail ->
-//             let oldValueForState = stateValue.TryGetValue()
-//     let learnFromOutcome (toBoard, gameStage) = 
-//         match gameStage with
-//         | Ilegal -> ()
-//         | Draw reward
-//         | Won reward 
-//         | Lost reward -> 
-//             currentGameHistory <- (fromState, tookAction, toState, reward) :: currentGameHistory
-//             learnFromHistory currentGameHistory
-//             currentGameHistory <- []
-
-//         | EnemyTurn (reward, _) -> currentGameHistory <- (reward, chosenAction, fromState) :: currentGameHistory
-
+let learningAgent () (shouldEplore: bool)  =
+    let stateValue = System.Collections.Generic.Dictionary<AgentBoard * Action, float>()
+    let mutable currentGameHistory = []
+    let learningRate = 0.3
+    let decaying = 0.8
+    // let exploring = .5
+    let pickAnAction (getActions: RequestActions) (getBoard: GetAgentBoard) (_: ShowBoard) : chosenAction: Action * actionOutcome: Outcome =
+        let fromState = getBoard()
+        let actions = getActions()
+        let tookAction = 
+            if shouldEplore 
+            then actions.[rand.Next(actions.Length)] |> fst
+            else
+                actions
+                |> Array.maxBy (fun (action, board) ->
+                    match stateValue.TryGetValue <| (board, action) with
+                    | false, _ -> 0.0
+                    | true, v -> v )
+                |> fst
+        let rec learnFromHistory (Reward nextActionReward) = function
+            | [] -> ()
+            | (fromState, tookAction, toState, Reward reward) :: tail ->
+                let oldValueForState = 
+                    match stateValue.TryGetValue <| (fromState, tookAction) with
+                    | false, _ -> 0.0
+                    | true, v -> v
+                let newReward = reward + nextActionReward
+                let newValue = oldValueForState + learningRate * (decaying * newReward - oldValueForState)
+                stateValue.[(fromState, tookAction)] <- newValue
+                learnFromHistory (Reward newValue) tail
+        let learnFromOutcome (gameStage: GameStage) : unit =
+            match gameStage with
+            | Ilegal -> ()
+            | Draw (reward, toState)
+            | Won (reward, toState) 
+            | Lost (reward, toState) -> 
+                currentGameHistory <- (fromState, tookAction, toState, reward) :: currentGameHistory
+                learnFromHistory (Reward 0.0) currentGameHistory
+                currentGameHistory <- []
+            | EnemyTurn (reward, toState) -> currentGameHistory <- (fromState, tookAction, toState, reward) :: currentGameHistory
+        tookAction, learnFromOutcome
+    pickAnAction
 
 
 let playGame (agentX: Agent) (agentO: Agent) =
@@ -101,10 +118,28 @@ open System
 
 [<EntryPoint>]
 let main argv =
-
-
-    [1 .. 2]
-    |> List.map(fun _ -> playGame userAgent randomAgent)
+    let learner = learningAgent ()
+    printfn "Teaching phase:"
+    // exploring
+    [1 .. 50000]
+    |> List.map(fun _ -> playGame (learner true) (learner true))
+    |> List.groupBy id
+    |> List.iter(fun sameGroup ->
+        printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+    )
+    printfn "Testing phase:"
+    // testing
+    [1..500]
+    |> List.map(fun _ ->  playGame (learner false) (learner false))
+    |> List.groupBy id
+    |> List.iter(fun sameGroup ->
+        printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+    )
+    printfn "Hammer time:"
+    
+    // experimenting the pain :))
+    [1..10]
+    |> List.map(fun _ -> playGame (learner false) userAgent)
     |> List.groupBy id
     |> List.iter(fun sameGroup ->
         printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
