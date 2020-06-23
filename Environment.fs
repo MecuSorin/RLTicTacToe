@@ -95,10 +95,10 @@ let observeAgentBoard (player: Player) board = observeBoard player board |> boar
 
 // Environment action
 let updateGame player (Action cellNo) game =
-    let moveReward = Reward 0.
-    let winReward = Reward 10.
-    let drawReward = Reward 0.
-    let loseReward = Reward -10.
+    let moveReward = Reward -1.0
+    let winReward = Reward 50.
+    let drawReward = Reward -5.0
+    let loseReward = Reward -50.
 
     let getOtherPlayer = function
         | PlayerX -> PlayerO
