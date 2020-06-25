@@ -72,9 +72,9 @@ module Utils =
     let boardRepresentationForAgent (baseBoard: string []): AgentBoard =
         [
             baseBoard |> String.concat ""
-            // baseBoard |> rotate  |> String.concat ""
-            // baseBoard |> rotate2 |> String.concat ""
-            // baseBoard |> rotate3 |> String.concat ""
+            baseBoard |> rotate  |> String.concat ""
+            baseBoard |> rotate2 |> String.concat ""
+            baseBoard |> rotate3 |> String.concat ""
         ]
             |> List.max
             |> AgentBoard
@@ -141,7 +141,7 @@ let updateGame player (Action cellNo) notifyEndGame game =
     | PlayerToMove p when p <> player -> 
         printfn "Not %A turn to move" player
         Ilegal, game
-    | PlayerToMove p when p = player ->
+    | PlayerToMove p ->
         match game.board.[cellNo] with
         | PlayerCell _ ->
             printfn "Cell already played"

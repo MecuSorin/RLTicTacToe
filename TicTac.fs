@@ -160,38 +160,69 @@ let playGame (agentX: Agent) (agentO: Agent) =
 
 open System
 
+let rangeAnimation mapper totalRuns =
+    let (oldLeft, oldTop) = Console.CursorLeft, Console.CursorTop
+    Console.Write(" ")
+    let divides = (totalRuns / 80 / 4) + 1
+    let writeOverPreviousChar (t: string) = 
+        Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop)
+        Console.Write(t)
+    let getNextItem = 
+        let fromSymbols = [|"/"; "-"; "\\"; ".|" |]
+        let totalSymbols = fromSymbols.Length
+        fun x -> fromSymbols.[(x / divides) % totalSymbols]
+    let result = 
+        [1 .. totalRuns]
+            |> List.map(fun x ->
+                if 0 = x % divides
+                    then
+                        getNextItem x |> writeOverPreviousChar
+                    else  ()
+                mapper x)
+    writeOverPreviousChar " "
+    Console.SetCursorPosition(oldLeft, oldTop)
+    Console.Write(String(' ', 81))
+    Console.SetCursorPosition(oldLeft, oldTop)
+    result
+
 [<EntryPoint>]
 let main argv =
-    let (learnerX, saveAgentX) = learningAgent "PlayerX.txt"
-    let (learnerO, saveAgentO) = learningAgent "PlayerO.txt"
+    let (learnerX, saveAgentX) = learningAgent "Player.txt"
+    let learnerO = learnerX
     use autoSave = { new IDisposable with
                 member __.Dispose () =
                     saveAgentX ()
-                    saveAgentO ()
+                    // saveAgentO ()
             }
     printfn "Teaching phase:"
     // exploring
-    [1 .. 500000]
-        |> List.map(fun _ -> playGame (learnerX FullExploration) (learnerO FullExploration))
-        |> List.groupBy id
-        |> List.iter(fun sameGroup ->
-            printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
-        )
-    printfn "Testing phase:"
+    // 2500000
+    //     |> rangeAnimation (fun _ -> playGame (learnerX FullExploration) (learnerO FullExploration))
+    //     |> List.groupBy id
+    //     |> List.iter(fun sameGroup ->
+    //         printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+    //     )
+    // printfn "Testing phase:"
     // testing
-    [1..100000]
-        |> List.map(fun _ ->  playGame (learnerX (LimitedExploration 0.3)) (learnerO (LimitedExploration 0.3)))
+    5000000
+        |> rangeAnimation (fun _ ->  playGame (learnerX (LimitedExploration 0.3)) (learnerO (LimitedExploration 0.3)))
         |> List.groupBy id
         |> List.iter(fun sameGroup ->
             printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
         )
     saveAgentX ()
-    saveAgentO ()
+    // saveAgentO ()
     printfn "Hammer time:"
 
     // experimenting the pain :))
-    [1..10]
-        |> List.map(fun _ -> playGame (learnerX NoExploration) userAgent)
+    200000
+        |> rangeAnimation(fun _ -> playGame (learnerX NoExploration) randomAgent)
+        |> List.groupBy id
+        |> List.iter(fun sameGroup ->
+            printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+        )
+    200000
+        |> rangeAnimation(fun _ -> playGame randomAgent (learnerO NoExploration))
         |> List.groupBy id
         |> List.iter(fun sameGroup ->
             printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
