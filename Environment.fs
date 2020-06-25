@@ -6,6 +6,29 @@ open MathNet.Numerics
 open MathNet.Numerics.LinearAlgebra
 open MathNet.Numerics.LinearAlgebra.Double
 
+type Action = Action of int
+type Reward = Reward of float
+type AgentBoard = AgentBoard of string
+type EnvironmentBoard = EnvironmentBoard of string
+type GameStage =
+    | Ilegal
+    | Won of Reward * AgentBoard
+    | Lost of Reward * AgentBoard
+    | Draw of Reward * AgentBoard
+    | EnemyTurn of reward: Reward * game: AgentBoard
+type EndGameNotification = 
+    | DrawNotification of Reward
+    | LostNotification of Reward
+type Cell =
+        | Empty
+        | Own
+        | Enemy
+    with override xx.ToString() = 
+            match xx with
+            | Empty -> " "
+            | Own -> "X"
+            | Enemy -> "0"
+
 type Player = PlayerX | PlayerO
 type Turn = 
     | PlayerToMove of Player
@@ -19,26 +42,8 @@ type Board = BoardCell []
 type Game = {
         board: Board
         turn: Turn
+        notifyEndGame: EndGameNotification -> unit
     }
-type Action = Action of int
-type Reward = Reward of float
-type AgentBoard = AgentBoard of string
-type EnvironmentBoard = EnvironmentBoard of string
-type GameStage =
-    | Ilegal
-    | Won of Reward * AgentBoard
-    | Lost of Reward * AgentBoard
-    | Draw of Reward * AgentBoard
-    | EnemyTurn of reward: Reward * game: AgentBoard
-type Cell =
-        | Empty
-        | Own
-        | Enemy
-    with override xx.ToString() = 
-            match xx with
-            | Empty -> " "
-            | Own -> "X"
-            | Enemy -> "0"
 
 [<AutoOpen>]
 module Utils =
@@ -55,12 +60,21 @@ module Utils =
     /// a way for the agent to reduce the problem space is to change the representation from matrix to a single string where empty cell is 0, Enemy is E and Own is M
     /// then take all 4 possible rotations of the matrix, represent them as strings and take the first string in sorted list
     /// the action should not be translated because the Engine is not actually rotate the board
+    // let sampleBoard = "123456789".ToCharArray() |> Array.map string
+    //     [
+    //         sampleBoard |> String.concat ""
+    //         sampleBoard |> rotate  |> String.concat ""
+    //         sampleBoard |> rotate2 |> String.concat ""
+    //         sampleBoard |> rotate3 |> String.concat ""
+    //     ]
+    //         |> List.distin
+    //         |> AgentBoard
     let boardRepresentationForAgent (baseBoard: string []): AgentBoard =
         [
             baseBoard |> String.concat ""
-            baseBoard |> rotate  |> String.concat ""
-            baseBoard |> rotate2 |> String.concat ""
-            baseBoard |> rotate3 |> String.concat ""
+            // baseBoard |> rotate  |> String.concat ""
+            // baseBoard |> rotate2 |> String.concat ""
+            // baseBoard |> rotate3 |> String.concat ""
         ]
             |> List.max
             |> AgentBoard
@@ -94,11 +108,11 @@ let observeAgentBoard (player: Player) board = observeBoard player board |> boar
 
 
 // Environment action
-let updateGame player (Action cellNo) game =
-    let moveReward = Reward -1.0
-    let winReward = Reward 50.
-    let drawReward = Reward -5.0
-    let loseReward = Reward -50.
+let updateGame player (Action cellNo) notifyEndGame game =
+    let moveReward  = Reward 0.0
+    let winReward   = Reward 10.0
+    let drawReward  = Reward 0.0
+    let loseReward  = Reward -10.0
 
     let getOtherPlayer = function
         | PlayerX -> PlayerO
@@ -120,13 +134,14 @@ let updateGame player (Action cellNo) game =
                 else getOtherPlayer player |> PlayerToMove
 
     match game.turn with
-    | GameDraw -> Draw (drawReward, game.board |> observeAgentBoard player), game
-    | GameWonBy p when p = player -> Won (winReward, game.board |> observeAgentBoard player), game
-    | GameWonBy _ -> Lost (loseReward, game.board |> observeAgentBoard player), game
+    | GameDraw 
+    | GameWonBy _ -> 
+        printfn "Game ended already. Nobody should attemp a move after the end"
+        Ilegal, game
     | PlayerToMove p when p <> player -> 
         printfn "Not %A turn to move" player
         Ilegal, game
-    | _ ->
+    | PlayerToMove p when p = player ->
         match game.board.[cellNo] with
         | PlayerCell _ ->
             printfn "Cell already played"
@@ -136,10 +151,15 @@ let updateGame player (Action cellNo) game =
             let newGameState = {
                 turn = getTurn player updatedBoard
                 board = updatedBoard
+                notifyEndGame = notifyEndGame
             }
             match newGameState.turn with
-                | GameDraw -> Draw (drawReward, newGameState.board |> observeAgentBoard player), newGameState
-                | GameWonBy p when p = player -> Won (winReward, newGameState.board |> observeAgentBoard player), newGameState
+                | GameDraw -> 
+                    game.notifyEndGame (DrawNotification drawReward)
+                    Draw (drawReward, newGameState.board |> observeAgentBoard player), newGameState
+                | GameWonBy p when p = player -> 
+                    game.notifyEndGame (LostNotification loseReward)
+                    Won (winReward, newGameState.board |> observeAgentBoard player), newGameState
                 | GameWonBy _ -> 
                     printfn "How the other won on my move???"
                     Ilegal, game
@@ -173,3 +193,4 @@ let availableActions (player: Player) (game: Game) =
                 |> Some
         | PlayerToMove _ -> None
 
+//

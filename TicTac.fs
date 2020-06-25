@@ -2,19 +2,20 @@
 open System
 open Environment
 open MBrace.FsPickler
-let rand = Random()
+let rand = Random(DateTime.Now.Second)
 type RequestActions = unit -> (Action * AgentBoard)[]
 type ShowBoard = unit -> string
 type GetAgentBoard = unit -> AgentBoard
 type Outcome = GameStage -> unit
-type Agent = RequestActions -> GetAgentBoard -> ShowBoard -> (Action * Outcome)
+type EndGameUpdate = EndGameNotification -> unit
+type Agent = RequestActions -> GetAgentBoard -> ShowBoard -> (Action * Outcome * EndGameUpdate)
 
-let randomAgent (getActions: RequestActions) (_ : GetAgentBoard) (_: ShowBoard) : chosenAction: Action * actionOutcome: Outcome =
+let randomAgent (getActions: RequestActions) (_ : GetAgentBoard) (_: ShowBoard) : chosenAction: Action * actionOutcome: Outcome * endGameNotification: EndGameUpdate =
     let actions = getActions()
     let (chosenAction, _) = actions.[rand.Next(actions.Length)]
-    chosenAction, ignore
+    chosenAction, ignore, ignore
 
-let userAgent (getActions: RequestActions) (_ : GetAgentBoard) (showBoard: ShowBoard) : chosenAction: Action * actionOutcome: Outcome =
+let userAgent (getActions: RequestActions) (_ : GetAgentBoard) (showBoard: ShowBoard) : chosenAction: Action * actionOutcome: Outcome * endGameNotification: EndGameUpdate =
     let actions = getActions() |> Array.map fst
     let mutable matchingAction = None
     while matchingAction |> Option.isNone do
@@ -31,7 +32,10 @@ let userAgent (getActions: RequestActions) (_ : GetAgentBoard) (showBoard: ShowB
         | Won _ -> printfn "Win"
         | Lost _ -> printfn "Lose"
         | EnemyTurn _ -> ()
-    Option.get matchingAction, checkOutcome
+    let acceptEndGame = function
+        | DrawNotification reward -> printfn "Draw"
+        | LostNotification reward -> printfn "Lost"
+    Option.get matchingAction, checkOutcome, acceptEndGame
 
 
 type Exploration = 
@@ -49,22 +53,22 @@ let (|ShouldExplore|ShouldNotExplore|) = function
 
 let learningAgent fileNameToSave =
     let binarySerializer = FsPickler.CreateBinarySerializer()
-    let stateValue = System.Collections.Generic.Dictionary<AgentBoard * Action, float>()
+    let stateValue = System.Collections.Generic.Dictionary<AgentBoard, float>()
     let mutable currentGameHistory = []
     let learningRate = 0.3
     let decaying = 0.8
     if System.IO.File.Exists(fileNameToSave)
         then 
             let fileContent = System.IO.File.ReadAllBytes(fileNameToSave)
-            let data = binarySerializer.UnPickle<(AgentBoard * Action * float) list>(fileContent)
+            let data = binarySerializer.UnPickle<(AgentBoard * float) list>(fileContent)
             data
-                |> List.sumBy (fun (ab, a, v)-> stateValue.Add((ab, a), v); 1)
+                |> List.sumBy (fun (ab, v)-> stateValue.Add(ab, v); 1)
                 |> printfn "Loaded previous agent knowledge (%i positions)"
         else ()
     let printAgentState (): unit =
         let dataToStore =
             stateValue
-            |> Seq.map (fun kvp -> (fst kvp.Key, snd kvp.Key, kvp.Value))
+            |> Seq.map (fun kvp -> (kvp.Key, kvp.Value))
             |> Seq.toList
             |> binarySerializer.Pickle
         System.IO.File.WriteAllBytes(fileNameToSave, dataToStore)
@@ -72,7 +76,7 @@ let learningAgent fileNameToSave =
         // stateValue.Values |> Seq.iter(printf ", %.2f")
         // printfn " "
     let learner(shouldExplore: Exploration)  =
-        let pickAnAction (getActions: RequestActions) (getBoard: GetAgentBoard) (_: ShowBoard) : chosenAction: Action * actionOutcome: Outcome =
+        let pickAnAction (getActions: RequestActions) (getBoard: GetAgentBoard) (_: ShowBoard) : chosenAction: Action * actionOutcome: Outcome * endGameNotification: EndGameUpdate =
             let fromState = getBoard()
             let actions = getActions()
             let tookAction = 
@@ -81,7 +85,7 @@ let learningAgent fileNameToSave =
                 | ShouldNotExplore ->
                     actions
                     |> Array.maxBy (fun (action, board) ->
-                        match stateValue.TryGetValue <| (board, action) with
+                        match stateValue.TryGetValue <| board with
                         | false, _ -> 0.0
                         | true, v -> v )
                     |> fst
@@ -89,12 +93,12 @@ let learningAgent fileNameToSave =
                 | [] -> ()
                 | (fromState, tookAction, toState, Reward reward) :: tail ->
                     let oldValueForState = 
-                        match stateValue.TryGetValue <| (fromState, tookAction) with
+                        match stateValue.TryGetValue <| toState with
                         | false, _ -> 0.0
                         | true, v -> v
                     let newReward = reward + nextActionReward
                     let newValue = oldValueForState + learningRate * (decaying * newReward - oldValueForState)
-                    stateValue.[(fromState, tookAction)] <- newValue
+                    stateValue.[toState] <- newValue
                     learnFromHistory (Reward newValue) tail
             let learnFromOutcome (gameStage: GameStage) : unit =
                 match gameStage with
@@ -106,7 +110,12 @@ let learningAgent fileNameToSave =
                     learnFromHistory (Reward 0.0) currentGameHistory
                     currentGameHistory <- []
                 | EnemyTurn (reward, toState) -> currentGameHistory <- (fromState, tookAction, toState, reward) :: currentGameHistory
-            tookAction, learnFromOutcome
+            let acceptEndGame = function
+                | DrawNotification reward
+                | LostNotification reward -> 
+                    learnFromHistory reward currentGameHistory
+                    currentGameHistory <- []
+            tookAction, learnFromOutcome, acceptEndGame
         pickAnAction
     learner, printAgentState
 
@@ -114,6 +123,7 @@ let playGame (agentX: Agent) (agentO: Agent) =
     let newGame = {
         turn = PlayerToMove PlayerX
         board = Array.init 9 (fun _ -> EmptyCell)
+        notifyEndGame = ignore
     }
     let rec gameLoop (state: Game) =
         match state.turn with
@@ -121,8 +131,8 @@ let playGame (agentX: Agent) (agentO: Agent) =
             let getActions () = availableActions PlayerX state |> Option.defaultValue [||]
             let showBoard () = state.board |> observeEnvironmentBoard PlayerX  |> showEnvironmentBoard
             let showAgentBoard () = state.board |> observeAgentBoard PlayerX
-            let (chosenAction, agentLearnOutcome) = agentX getActions showAgentBoard showBoard
-            let (newStage, newState) = updateGame PlayerX chosenAction state
+            let (chosenAction, agentLearnOutcome, notifyEndGame) = agentX getActions showAgentBoard showBoard
+            let (newStage, newState) = updateGame PlayerX chosenAction notifyEndGame state
             agentLearnOutcome  newStage
             match newStage with
             | Ilegal _ -> gameLoop state
@@ -134,8 +144,8 @@ let playGame (agentX: Agent) (agentO: Agent) =
             let getActions () = availableActions PlayerO state |> Option.defaultValue [||]
             let showBoard () = state.board |> observeEnvironmentBoard PlayerO |> showEnvironmentBoard
             let showAgentBoard () = state.board |> observeAgentBoard PlayerO
-            let (chosenAction, agentLearnOutcome) = agentO getActions showAgentBoard showBoard
-            let (newStage, newState) = updateGame PlayerO chosenAction state
+            let (chosenAction, agentLearnOutcome, notifyEndGame) = agentO getActions showAgentBoard showBoard
+            let (newStage, newState) = updateGame PlayerO chosenAction notifyEndGame state
             agentLearnOutcome newStage
             match newStage with
             | Ilegal _-> gameLoop state
@@ -152,31 +162,39 @@ open System
 
 [<EntryPoint>]
 let main argv =
-    let (learner, agentPrinter) = learningAgent "agentMemory.txt"
+    let (learnerX, saveAgentX) = learningAgent "PlayerX.txt"
+    let (learnerO, saveAgentO) = learningAgent "PlayerO.txt"
+    use autoSave = { new IDisposable with
+                member __.Dispose () =
+                    saveAgentX ()
+                    saveAgentO ()
+            }
     printfn "Teaching phase:"
     // exploring
-    [1 .. 1150000]
-    |> List.map(fun _ -> playGame (learner FullExploration) (learner FullExploration))
-    |> List.groupBy id
-    |> List.iter(fun sameGroup ->
-        printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
-    )
+    [1 .. 500000]
+        |> List.map(fun _ -> playGame (learnerX FullExploration) (learnerO FullExploration))
+        |> List.groupBy id
+        |> List.iter(fun sameGroup ->
+            printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+        )
     printfn "Testing phase:"
     // testing
-    [1..150000]
-    |> List.map(fun _ ->  playGame (learner (LimitedExploration 0.3)) (learner (LimitedExploration 0.3)))
-    |> List.groupBy id
-    |> List.iter(fun sameGroup ->
-        printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
-    )
-    agentPrinter ()
+    [1..100000]
+        |> List.map(fun _ ->  playGame (learnerX (LimitedExploration 0.3)) (learnerO (LimitedExploration 0.3)))
+        |> List.groupBy id
+        |> List.iter(fun sameGroup ->
+            printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+        )
+    saveAgentX ()
+    saveAgentO ()
     printfn "Hammer time:"
-    
+
     // experimenting the pain :))
     [1..10]
-    |> List.map(fun _ -> playGame (learner NoExploration) userAgent)
-    |> List.groupBy id
-    |> List.iter(fun sameGroup ->
-        printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
-    )
+        |> List.map(fun _ -> playGame (learnerX NoExploration) userAgent)
+        |> List.groupBy id
+        |> List.iter(fun sameGroup ->
+            printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+        )
+
     0 // return an integer exit code
