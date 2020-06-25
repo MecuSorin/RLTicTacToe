@@ -50,16 +50,16 @@ module Utils =
     let ones = Vector<float>.Build.Dense(3, 1.0)
     let diagonal = Matrix<float>.Build.DiagonalIdentity(3, 3)
     let antiDiagonal = Matrix.Build.Dense(3,3, fun i j -> if 2 - i = j then 1.0 else 0.0 )
-    let rotateIndex i = match i with 0 -> 6 | 1 -> 3 | 2 -> 0 | 3 -> 7 | 4 -> 4 | 5 -> 1 | 6 -> 8 | 7 -> 5 | 8 -> 2 | _ -> -1
-    let rotateIndex2 = rotateIndex >> rotateIndex
-    let rotateIndex3 = rotateIndex >> rotateIndex >> rotateIndex
-    let rotate (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex i])
-    let rotate2 (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex2 i])
-    let rotate3 (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex3 i])
+    // let rotateIndex i = match i with 0 -> 6 | 1 -> 3 | 2 -> 0 | 3 -> 7 | 4 -> 4 | 5 -> 1 | 6 -> 8 | 7 -> 5 | 8 -> 2 | _ -> -1
+    // let rotateIndex2 = rotateIndex >> rotateIndex
+    // let rotateIndex3 = rotateIndex >> rotateIndex >> rotateIndex
+    // let rotate (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex i])
+    // let rotate2 (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex2 i])
+    // let rotate3 (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex3 i])
 
-    /// a way for the agent to reduce the problem space is to change the representation from matrix to a single string where empty cell is 0, Enemy is E and Own is M
-    /// then take all 4 possible rotations of the matrix, represent them as strings and take the first string in sorted list
-    /// the action should not be translated because the Engine is not actually rotate the board
+    // a way for the agent to reduce the problem space is to change the representation from matrix to a single string where empty cell is 0, Enemy is E and Own is M
+    // then take all 4 possible rotations of the matrix, represent them as strings and take the first string in sorted list
+    // the action should not be translated because the Engine is not actually rotate the board
     // let sampleBoard = "123456789".ToCharArray() |> Array.map string
     //     [
     //         sampleBoard |> String.concat ""
@@ -80,19 +80,13 @@ module Utils =
             |> AgentBoard
 
     let showEnvironmentBoard (EnvironmentBoard board) =
-        // let board = "012345678"
         board.ToCharArray()
         |> Array.map string
         |> Array.chunkBySize 3
         |> Array.map (fun x -> " " + String.concat " │ " x)
         |> String.concat "\n───┼───┼───\n"
-        // |> fun t -> "\n" + t
-        // let sb = System.Text.StringBuilder("You are using X, enemy 0:\n------")
-        // sb.AppendLine(agentBoard.Substring(0,3)) .AppendLine(agentBoard.Substring(3, 3)) .AppendLine(agentBoard.Substring(6)) |> ignore
-        // sb.AppendLine()
-        // sb.ToString()
 
-// Agent ask for environment observation
+
 let private observeBoard (player: Player) board =
     board 
         |> Array.map((function
@@ -101,22 +95,19 @@ let private observeBoard (player: Player) board =
                         | PlayerCell _ -> Enemy)
                         >> string)
 
+/// Human user ask for environment observation
 let observeEnvironmentBoard (player: Player) board = observeBoard player board |> String.concat "" |> EnvironmentBoard
+/// Agent ask for environment observation
 let observeAgentBoard (player: Player) board = observeBoard player board |> boardRepresentationForAgent
 
-
-
-
-// Environment action
+/// Environment action
 let updateGame player (Action cellNo) notifyEndGame game =
     let moveReward  = Reward 0.0
     let winReward   = Reward 10.0
     let drawReward  = Reward 0.0
     let loseReward  = Reward -10.0
 
-    let getOtherPlayer = function
-        | PlayerX -> PlayerO
-        | PlayerO -> PlayerX
+    let getOtherPlayer = function PlayerX -> PlayerO | PlayerO -> PlayerX
     let getTurn player (board: Board): Turn =
         let distinctRepresentation = 
             Matrix<float>.Build.Dense(3,3,fun i j -> match board.[i * 3 + j] with
@@ -140,7 +131,7 @@ let updateGame player (Action cellNo) notifyEndGame game =
     | PlayerToMove p when p <> player -> 
         printfn "Not %A turn to move" player
         Ilegal, game
-    | PlayerToMove p ->
+    | PlayerToMove _player ->
         match game.board.[cellNo] with
         | PlayerCell _ ->
             printfn "Cell already played"
@@ -164,11 +155,7 @@ let updateGame player (Action cellNo) notifyEndGame game =
                     Ilegal, game
                 | PlayerToMove _ -> EnemyTurn (moveReward, newGameState.board |> observeAgentBoard player), newGameState
 
-////////////////////////////////////////////////  FROM AGENT Perspective
-
-
-
-// Agent ask for actions
+/// Agent ask for actions
 let availableActions (player: Player) (game: Game) =
     match game.turn with
     | GameWonBy _
@@ -191,5 +178,3 @@ let availableActions (player: Player) (game: Game) =
             |> Array.choose id
                 |> Some
         | PlayerToMove _ -> None
-
-//
