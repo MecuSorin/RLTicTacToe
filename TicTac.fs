@@ -197,36 +197,48 @@ let showCumulatedResults winners =
 
 [<EntryPoint>]
 let main argv =
-    let (learner, saveAgentExperience) = learningAgent "Player.txt"
+    let (learnerX, saveAgentXExperience) = learningAgent "PlayerX.txt"
+    let (learnerO, saveAgentOExperience) = learningAgent "PlayerO.txt"
     use autoSave = { new IDisposable with
-                        member __.Dispose () = saveAgentExperience () }
+                        member __.Dispose () = 
+                            saveAgentXExperience () 
+                            saveAgentOExperience () 
+                            }
     // exploring
     printfn "Teaching phase:"
-    150000
-        |> rangeAnimation (fun _ -> playGame (learner FullExploration) (learner FullExploration))
+    2//_500_000
+        |> rangeAnimation (fun _ -> playGame (learnerX FullExploration) (learnerO FullExploration))
         |> showCumulatedResults
-    saveAgentExperience ()
+    saveAgentXExperience ()
+    saveAgentOExperience ()
 
-    50000
-            |> rangeAnimation (fun _ ->  playGame (learner (LimitedExploration 0.3)) (learner (LimitedExploration 0.3)))
+    2//_000_000
+            |> rangeAnimation (fun _ ->  playGame (learnerX (LimitedExploration 0.3)) (learnerO (LimitedExploration 0.3)))
             |> showCumulatedResults
-    saveAgentExperience ()
+    saveAgentXExperience ()
+    saveAgentOExperience ()
 
     // testing
-    printfn "Testing phase:"
-    20000
-        |> rangeAnimation(fun _ -> playGame (learner NoExploration) randomAgent)
+    printfn "Testing phase with randoms:"
+    5//00_000
+        |> rangeAnimation(fun _ -> playGame (learnerX NoExploration) randomAgent)
         |> showCumulatedResults
-    20000
-        |> rangeAnimation(fun _ -> playGame randomAgent (learner NoExploration))
+    5//00_000
+        |> rangeAnimation(fun _ -> playGame randomAgent (learnerO NoExploration))
         |> showCumulatedResults
-
+    printfn "Testing phase against eachother:"
+    500_000
+        |> rangeAnimation(fun _ -> playGame (learnerX NoExploration) (learnerO NoExploration))
+        |> showCumulatedResults
+    500_000
+        |> rangeAnimation(fun _ -> playGame (learnerX NoExploration) (learnerO NoExploration))
+        |> showCumulatedResults
     printfn "Hammer time:"
     // experimenting the pain :))
     [1 .. 5]
-        |> List.map(fun _ -> playGame userAgent (learner NoExploration))
+        |> List.map(fun _ -> playGame userAgent (learnerO NoExploration))
         |> showCumulatedResults
     [1 .. 5]
-        |> List.map(fun _ -> playGame (learner NoExploration) userAgent)
+        |> List.map(fun _ -> playGame (learnerX NoExploration) userAgent)
         |> showCumulatedResults
     0 // return an integer exit code
