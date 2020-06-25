@@ -40,11 +40,11 @@ let userAgent (getActions: RequestActions) (_ : GetAgentBoard) (showBoard: ShowB
 
 type Exploration = 
     | NoExploration
-    | FullExploration
+    // | FullExploration
     | LimitedExploration of float
 let (|ShouldExplore|ShouldNotExplore|) = function
     | NoExploration -> ShouldNotExplore
-    | FullExploration -> ShouldExplore
+    // | FullExploration -> ShouldExplore
     | LimitedExploration v ->
         if rand.NextDouble() < v 
             then ShouldExplore
