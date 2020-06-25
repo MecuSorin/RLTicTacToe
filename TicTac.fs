@@ -34,17 +34,17 @@ let userAgent (getActions: RequestActions) (_ : GetAgentBoard) (showBoard: ShowB
         | EnemyTurn _ -> ()
     let acceptEndGame = function
         | DrawNotification reward -> printfn "Draw"
-        | LostNotification reward -> printfn "Lost"
+        | LostNotification reward -> printfn "Lose"
     Option.get matchingAction, checkOutcome, acceptEndGame
 
 
 type Exploration = 
     | NoExploration
-    // | FullExploration
+    | FullExploration
     | LimitedExploration of float
 let (|ShouldExplore|ShouldNotExplore|) = function
     | NoExploration -> ShouldNotExplore
-    // | FullExploration -> ShouldExplore
+    | FullExploration -> ShouldExplore
     | LimitedExploration v ->
         if rand.NextDouble() < v 
             then ShouldExplore
@@ -55,7 +55,7 @@ let learningAgent fileNameToSave =
     let binarySerializer = FsPickler.CreateBinarySerializer()
     let stateValue = System.Collections.Generic.Dictionary<AgentBoard, float>()
     let mutable currentGameHistory = []
-    let learningRate = 0.3
+    let learningRate = 0.03
     let decaying = 0.8
     if System.IO.File.Exists(fileNameToSave)
         then 
@@ -196,36 +196,48 @@ let main argv =
             }
     printfn "Teaching phase:"
     // exploring
-    // 2500000
+    // 5000000
     //     |> rangeAnimation (fun _ -> playGame (learnerX FullExploration) (learnerO FullExploration))
     //     |> List.groupBy id
     //     |> List.iter(fun sameGroup ->
     //         printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
     //     )
+    // saveAgentX ()
     // printfn "Testing phase:"
     // testing
-    5000000
+    for i = 1 to 1 do
+        1000
         |> rangeAnimation (fun _ ->  playGame (learnerX (LimitedExploration 0.3)) (learnerO (LimitedExploration 0.3)))
         |> List.groupBy id
         |> List.iter(fun sameGroup ->
             printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
         )
-    saveAgentX ()
-    // saveAgentO ()
+        saveAgentX ()
     printfn "Hammer time:"
 
     // experimenting the pain :))
-    200000
+    20000
         |> rangeAnimation(fun _ -> playGame (learnerX NoExploration) randomAgent)
         |> List.groupBy id
         |> List.iter(fun sameGroup ->
             printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
         )
-    200000
+    20000
         |> rangeAnimation(fun _ -> playGame randomAgent (learnerO NoExploration))
         |> List.groupBy id
         |> List.iter(fun sameGroup ->
             printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
         )
-
+    // [1 .. 5]
+    //     |> List.map(fun _ -> playGame userAgent (learnerO NoExploration))
+    //     |> List.groupBy id
+    //     |> List.iter(fun sameGroup ->
+    //         printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+    //     )
+    // [1 .. 5]
+    //     |> List.map(fun _ -> playGame (learnerX NoExploration) userAgent)
+    //     |> List.groupBy id
+    //     |> List.iter(fun sameGroup ->
+    //         printfn "%A: %i" (fst sameGroup) (snd sameGroup |> List.length)
+    //     )
     0 // return an integer exit code

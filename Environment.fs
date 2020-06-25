@@ -70,13 +70,13 @@ module Utils =
     //         |> List.distin
     //         |> AgentBoard
     let boardRepresentationForAgent (baseBoard: string []): AgentBoard =
-        [
+        // [
             baseBoard |> String.concat ""
-            baseBoard |> rotate  |> String.concat ""
-            baseBoard |> rotate2 |> String.concat ""
-            baseBoard |> rotate3 |> String.concat ""
-        ]
-            |> List.max
+        //     baseBoard |> rotate  |> String.concat ""
+        //     baseBoard |> rotate2 |> String.concat ""
+        //     baseBoard |> rotate3 |> String.concat ""
+        // ]
+        //     |> List.max
             |> AgentBoard
 
     let showEnvironmentBoard (EnvironmentBoard board) =
@@ -118,20 +118,19 @@ let updateGame player (Action cellNo) notifyEndGame game =
         | PlayerX -> PlayerO
         | PlayerO -> PlayerX
     let getTurn player (board: Board): Turn =
-        if 0 = (board |> Array.sumBy (function EmptyCell -> 1 | _ -> 0))
-        then GameDraw
-        else
-            let distinctRepresentation = 
-                Matrix<float>.Build.Dense(3,3,fun i j -> match board.[i * 3 + j] with
-                                                            | EmptyCell -> 0.
-                                                            | PlayerCell p when p = player -> 1.
-                                                            | PlayerCell _ -> 0.)
-            if distinctRepresentation * ones |> Vector.exists((=)3.0)                       // horizontal check for win
-                || distinctRepresentation.Transpose() * ones |> Vector.exists((=)3.0)       // vertical check for win
-                || distinctRepresentation.Diagonal().Sum() = 3.0                            // main diagonal check for win
-                || (distinctRepresentation * antiDiagonal).Diagonal().Sum() = 3.0           // antidiagonal check for win
-                then GameWonBy player
-                else getOtherPlayer player |> PlayerToMove
+        let distinctRepresentation = 
+            Matrix<float>.Build.Dense(3,3,fun i j -> match board.[i * 3 + j] with
+                                                        | EmptyCell -> 0.
+                                                        | PlayerCell p when p = player -> 1.
+                                                        | PlayerCell _ -> 0.)
+        if distinctRepresentation * ones |> Vector.exists((=)3.0)                       // horizontal check for win
+            || distinctRepresentation.Transpose() * ones |> Vector.exists((=)3.0)       // vertical check for win
+            || distinctRepresentation.Diagonal().Sum() = 3.0                            // main diagonal check for win
+            || (distinctRepresentation * antiDiagonal).Diagonal().Sum() = 3.0           // antidiagonal check for win
+            then GameWonBy player
+            else if 0 = (board |> Array.sumBy (function EmptyCell -> 1 | _ -> 0))
+                    then GameDraw
+                    else getOtherPlayer player |> PlayerToMove
 
     match game.turn with
     | GameDraw 
