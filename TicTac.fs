@@ -202,7 +202,7 @@ let main argv =
                         member __.Dispose () = saveAgentExperience () }
     // exploring
     printfn "Teaching phase:"
-    100000
+    150000
         |> rangeAnimation (fun _ -> playGame (learner FullExploration) (learner FullExploration))
         |> showCumulatedResults
     saveAgentExperience ()

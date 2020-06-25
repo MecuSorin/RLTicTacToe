@@ -50,33 +50,9 @@ module Utils =
     let ones = Vector<float>.Build.Dense(3, 1.0)
     let diagonal = Matrix<float>.Build.DiagonalIdentity(3, 3)
     let antiDiagonal = Matrix.Build.Dense(3,3, fun i j -> if 2 - i = j then 1.0 else 0.0 )
-    // let rotateIndex i = match i with 0 -> 6 | 1 -> 3 | 2 -> 0 | 3 -> 7 | 4 -> 4 | 5 -> 1 | 6 -> 8 | 7 -> 5 | 8 -> 2 | _ -> -1
-    // let rotateIndex2 = rotateIndex >> rotateIndex
-    // let rotateIndex3 = rotateIndex >> rotateIndex >> rotateIndex
-    // let rotate (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex i])
-    // let rotate2 (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex2 i])
-    // let rotate3 (board: _ []) = Array.init 9 (fun i -> board.[rotateIndex3 i])
 
-    // a way for the agent to reduce the problem space is to change the representation from matrix to a single string where empty cell is 0, Enemy is E and Own is M
-    // then take all 4 possible rotations of the matrix, represent them as strings and take the first string in sorted list
-    // the action should not be translated because the Engine is not actually rotate the board
-    // let sampleBoard = "123456789".ToCharArray() |> Array.map string
-    //     [
-    //         sampleBoard |> String.concat ""
-    //         sampleBoard |> rotate  |> String.concat ""
-    //         sampleBoard |> rotate2 |> String.concat ""
-    //         sampleBoard |> rotate3 |> String.concat ""
-    //     ]
-    //         |> List.distin
-    //         |> AgentBoard
     let boardRepresentationForAgent (baseBoard: string []): AgentBoard =
-        // [
-            baseBoard |> String.concat ""
-        //     baseBoard |> rotate  |> String.concat ""
-        //     baseBoard |> rotate2 |> String.concat ""
-        //     baseBoard |> rotate3 |> String.concat ""
-        // ]
-        //     |> List.max
+        baseBoard |> String.concat ""
             |> AgentBoard
 
     let showEnvironmentBoard (EnvironmentBoard board) =
@@ -177,4 +153,4 @@ let availableActions (player: Player) (game: Game) =
                 | _ -> None)
             |> Array.choose id
                 |> Some
-        | PlayerToMove _ -> None
+    | PlayerToMove _ -> None
